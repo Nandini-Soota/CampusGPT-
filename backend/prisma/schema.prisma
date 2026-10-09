@@ -1,0 +1,266 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum UserRole {
+  STUDENT
+  PROCTOR
+  CLUB_ADMIN
+  ADMIN
+}
+
+model User {
+  id           String   @id @default(uuid())
+  name         String
+  email        String   @unique
+  passwordHash String?
+  role         UserRole @default(STUDENT)
+
+  branch              String?
+  year                Int?
+  phone               String?
+  semesterStartDate   DateTime?
+  lastInstructionDate DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  clubAdmins         ClubAdmin[]
+  memberships        ClubMembership[]
+  eventRegistrations EventRegistration[]
+  scheduleEntries    ScheduleEntry[]
+  attendanceRecords  AttendanceRecord[]
+  organizedEvents    Event[]             @relation("EventOrganizer")
+  calendarEvents     CalendarEvent[]
+  notifications      Notification[]
+}
+
+enum CampusLocationType {
+  BUILDING
+  DEPARTMENT
+  OFFICE
+  FACULTY_CABIN
+  SERVICE
+  OTHER
+}
+
+model CampusLocation {
+  id          String             @id @default(uuid())
+  name        String
+  type        CampusLocationType
+  description String?
+  building    String?
+  floor       String?
+  roomNumber  String?
+  contact     String?
+  email       String?
+  latitude    Float?
+  longitude   Float?
+  isVerified  Boolean            @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+enum ClubCategory {
+  TECHNICAL
+  CULTURAL
+  SPORTS
+  LITERARY
+  SOCIAL
+  ENTREPRENEURSHIP
+  OTHER
+}
+
+model Club {
+  id          String       @id @default(uuid())
+  name        String       @unique
+  description String
+  category    ClubCategory
+  logoUrl     String?
+  email       String?
+  instagram   String?
+  isVerified  Boolean      @default(false)
+  isActive    Boolean      @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  admins  ClubAdmin[]
+  members ClubMembership[]
+}
+
+model ClubAdmin {
+  id        String   @id @default(uuid())
+  userId    String
+  clubId    String
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  club Club @relation(fields: [clubId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, clubId])
+}
+
+model ClubMembership {
+  id       String   @id @default(uuid())
+  userId   String
+  clubId   String
+  joinedAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  club Club @relation(fields: [clubId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, clubId])
+  @@index([clubId])
+  @@index([userId])
+}
+
+enum EventCategory {
+  TECHNICAL
+  CULTURAL
+  SPORTS
+  WORKSHOP
+  SEMINAR
+  COMPETITION
+  OTHER
+}
+
+model Event {
+  id          String        @id @default(uuid())
+  title       String
+  description String
+  category    EventCategory
+  venue       String
+  startsAt    DateTime
+  endsAt      DateTime?
+  capacity    Int?
+  isPublished Boolean       @default(true)
+
+  organizerId String?
+  organizer   User?   @relation("EventOrganizer", fields: [organizerId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  registrations EventRegistration[]
+
+  @@index([organizerId])
+}
+
+model EventRegistration {
+  id           String   @id @default(uuid())
+  userId       String
+  eventId      String
+  registeredAt DateTime @default(now())
+
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, eventId])
+  @@index([eventId])
+  @@index([userId])
+}
+
+model ScheduleEntry {
+  id         String  @id @default(uuid())
+  userId     String
+  courseName String
+  courseCode String?
+  day        String
+  slotCode   String
+  startTime  String
+  endTime    String
+  room       String?
+  instructor String?
+  isActive   Boolean @default(true)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  attendanceRecords AttendanceRecord[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+}
+
+model AttendanceRecord {
+  id              String   @id @default(uuid())
+  userId          String
+  scheduleEntryId String
+  date            DateTime
+  status          String
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  scheduleEntry ScheduleEntry @relation(fields: [scheduleEntryId], references: [id], onDelete: Cascade)
+
+  @@unique([scheduleEntryId, date])
+  @@index([userId])
+  @@index([date])
+}
+
+model AcademicCalendar {
+  id           String   @id @default(uuid())
+  date         DateTime @unique
+  isWorkingDay Boolean  @default(true)
+  description  String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([date])
+}
+
+model CalendarEvent {
+  id     String @id @default(uuid())
+  userId String
+
+  title          String
+  description    String?
+  type           String
+  eventDate      DateTime
+  notifyBefore   Int      @default(60)
+  notificationAt DateTime
+  isCompleted    Boolean  @default(false)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  notifications Notification[]
+
+  @@index([userId])
+  @@index([eventDate])
+  @@index([notificationAt])
+}
+
+model Notification {
+  id              String  @id @default(uuid())
+  userId          String
+  calendarEventId String?
+
+  title       String
+  message     String
+  isRead      Boolean   @default(false)
+  scheduledAt DateTime
+  sentAt      DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  calendarEvent CalendarEvent? @relation(fields: [calendarEventId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([scheduledAt])
+  @@index([isRead])
+}
